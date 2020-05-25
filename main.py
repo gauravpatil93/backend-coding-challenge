@@ -21,6 +21,7 @@ import os
 import geopy.distance
 from fuzzywuzzy import fuzz
 from operator import itemgetter
+from voluptuous import Required, All, Length, Range, Schema, MultipleInvalid, Invalid, Coerce
 
 # If `entrypoint` is not defined in app.yaml, App Engine will look for an app
 # called `app` in `main.py`.
@@ -116,17 +117,31 @@ class Suggestions(Resource):
                 if self.isascii(alt_name):
                     score = fuzz.token_set_ratio(q, alt_name.replace(" ", ""))
                     if score > current_score:
+                        pass
                         current_score = score
-        return current_score/10 if current_score > 0 else 0
+        return current_score/100 if current_score > 0 else 0
 
     def get(self):
+        # Arguments
+        args = request.args.to_dict()
+
+        schema = Schema({
+            Required('q'): All(str, Length(min=1)),
+            'latitude': All(Coerce(float), Range(min=-90.00, max=90.00)),
+            'longitude': All(Coerce(float), Range(min=-180.00, max=180.00))
+        })
+
+        try:
+            schema(args)
+        except Invalid as e:
+            return str(e)
+        except MultipleInvalid as e:
+            return str(e)
+
         # Response object
         response = {
             "suggestions": []
         }
-
-        # Arguments
-        args = request.args
 
         if args:
 
@@ -157,7 +172,7 @@ class Suggestions(Resource):
 
                 score = self.get_fuzzy_score(q, name, alt_names)
 
-                if score > 8.0:
+                if score > 0.7:
                     if row["admin1"].values[0].isdigit():
                         # Canada
                         suffix = self.fips_mapping(row["admin1"].values[0]) + ", Canada"
@@ -165,14 +180,23 @@ class Suggestions(Resource):
                         # USA
                         suffix = row["admin1"].values[0] + ", USA"
 
-                    response["suggestions"].append({
-                        "name": name.title() + ", " + suffix,
-                        "latitude": row["lat"].values[0],
-                        "longitude": row["long"].values[0],
-                        "score": score
-                    })
+                    if "latitude" in args and "longitude" in args:
+                        response["suggestions"].append({
+                            "name": name.title() + ", " + suffix,
+                            "latitude": row["lat"].values[0],
+                            "longitude": row["long"].values[0],
+                            "score": score,
+                            "distance": geopy.distance.distance((args["latitude"], args["longitude"]), (row["lat"].values[0], row["long"].values[0])).km
+                        })
+                    else:
+                        response["suggestions"].append({
+                            "name": name.title() + ", " + suffix,
+                            "latitude": row["lat"].values[0],
+                            "longitude": row["long"].values[0],
+                            "score": score
+                        })
 
-            response["suggestions"] = sorted(response["suggestions"], key=itemgetter('score'), reverse=True) 
+            response["suggestions"] = sorted(response["suggestions"], key=itemgetter('score'), reverse=True)
 
             return response
         else:
