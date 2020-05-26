@@ -168,7 +168,7 @@ class Suggestions(Resource):
 
                 score = self.get_fuzzy_score(q, name)
 
-                if score > 0.7:
+                if score > 0.5:
                     if row["admin1"].values[0].isdigit():
                         # Canada
                         suffix = self.fips_mapping(row["admin1"].values[0]) + ", Canada"
