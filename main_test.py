@@ -13,12 +13,53 @@
 # limitations under the License.
 
 import main
+import unittest
 
 
-def test_index():
-    main.app.testing = True
-    client = main.app.test_client()
+class TestApp(unittest.TestCase):
 
-    r = client.get('/')
-    assert r.status_code == 200
-    assert 'Hello World' in r.data.decode('utf-8')
+    def test_empty_query(self):
+        main.app.testing = True
+        client = main.app.test_client()
+        r = client.get('/suggestions?q=')
+        string = r.data.decode("utf-8").strip()
+        string = string.replace('"', "")
+        self.assertEqual("length of value must be at least 1 for dictionary value @ data['q']", string)
+
+    def test_no_query(self):
+        main.app.testing = True
+        client = main.app.test_client()
+        r = client.get('/suggestions')
+        string = r.data.decode("utf-8").strip()
+        string = string.replace('"', "")
+        self.assertEqual("required key not provided @ data['q']", string)
+
+    def test_no_query_equals(self):
+        main.app.testing = True
+        client = main.app.test_client()
+        r = client.get('/suggestions?')
+        string = r.data.decode("utf-8").strip()
+        string = string.replace('"', "")
+        self.assertEqual("required key not provided @ data['q']", string)
+
+    def test_no_output(self):
+        main.app.testing = True
+        client = main.app.test_client()
+        r = client.get('/suggestions?q=somerandomplace')
+        response = '{suggestions: []}'
+        string = r.data.decode("utf-8").strip()
+        string = string.replace('"', "")
+        self.assertEqual(response, string)
+
+    def test_query_is_number_output(self):
+        main.app.testing = True
+        client = main.app.test_client()
+        r = client.get('/suggestions?q=12345')
+        response = '{suggestions: []}'
+        string = r.data.decode("utf-8").strip()
+        string = string.replace('"', "")
+        self.assertEqual(response, string)
+    
+
+if __name__ == '__main__':
+    unittest.main()

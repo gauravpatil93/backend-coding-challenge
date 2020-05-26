@@ -33,11 +33,16 @@ APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 @app.route('/')
 def hello():
     """Return a friendly HTTP greeting."""
-    return 'Hello World!'
+    return 'Example: /suggestions?q=Londo&latitude=43.70011&longitude=-79.4163'
 
 
 class Suggestions(Resource):
     def fips_mapping(self, fips_code):
+        """
+        `fips_code`: String
+        
+        Function returns the two letter province code
+        """
         fips_map = {
             "01": "AB",
             "02": "BC",
@@ -66,15 +71,14 @@ class Suggestions(Resource):
         """
         return len(s) == len(s.encode())
 
-    def get_fuzzy_score(self, q, name, alt_names):
+    def get_fuzzy_score(self, q, name):
         """
         The scoring function takes the following arguments
         `q`: String (ascii) - the query string
         `name`: String (ascii) - the name of the city
-        `alt_names`: Unicode - the comma seperated alternate names
 
         The function uses the concept of Fuzzy String Matching to generate
-        a similarity score by comparing q with the name and all the alt_names.
+        a similarity score by comparing q with the name
 
         fuzzywuzzy's - `token set approach` - example
 
@@ -109,20 +113,22 @@ class Suggestions(Resource):
         when (a) that makes up a larger percentage of the full string,
         and (b) the string remainders are more similar.
         """
-
-        current_score = fuzz.token_set_ratio(q, name.replace(" ", ""))
-
-        if alt_names != "":
-            for alt_name in alt_names.split(","):
-                if self.isascii(alt_name):
-                    score = fuzz.token_set_ratio(q, alt_name.replace(" ", ""))
-                    if score > current_score:
-                        pass
-                        current_score = score
+        current_score = fuzz.token_set_ratio(q, name.strip())
         return current_score/100 if current_score > 0 else 0
 
+    def truncate(self, n, decimals=0):
+        """
+        `n`: Float
+        `decimals`: Int 
+
+        Example: truncate(self, 72.8500, decimals=1)
+        Convertes 72.8500 to 72.8
+        """
+        multiplier = 10 ** decimals
+        return int(n * multiplier) / multiplier
+
     def get(self):
-        # Arguments
+
         args = request.args.to_dict()
 
         schema = Schema({
@@ -138,39 +144,29 @@ class Suggestions(Resource):
         except MultipleInvalid as e:
             return str(e)
 
-        # Response object
         response = {
             "suggestions": []
         }
 
-        if args:
+        if not args['q'].isdigit() and self.isascii(args['q']):
 
             df = pd.read_table(os.path.join(APP_ROOT, "data", "cities_canada-usa.tsv"))
 
             ids = df['id'].tolist()
 
-            q = args["q"].lower()
+            q = args["q"]
 
             for rid in ids:
                 row = df.loc[df['id'] == rid]
 
                 name = ""
-                alt_names = ""
 
-                # continue if there the row does not contain a
-                # name and any alternate names
-                if pd.isna(row["ascii"].values[0]) and pd.isna(row["alt_name"].values[0]):
+                if pd.isna(row["ascii"].values[0]):
                     continue
 
-                # If the ascii value is not none
-                if not pd.isna(row["ascii"].values[0]):
-                    name = row["ascii"].values[0].lower()
+                name = row["ascii"].values[0]
 
-                # If the alt_name value is not none
-                if not pd.isna(row["alt_name"].values[0]):
-                    alt_names = row["alt_name"].values[0].lower()
-
-                score = self.get_fuzzy_score(q, name, alt_names)
+                score = self.get_fuzzy_score(q, name)
 
                 if score > 0.7:
                     if row["admin1"].values[0].isdigit():
@@ -185,7 +181,7 @@ class Suggestions(Resource):
                             "name": name.title() + ", " + suffix,
                             "latitude": row["lat"].values[0],
                             "longitude": row["long"].values[0],
-                            "score": score,
+                            "score": self.truncate(score, decimals=1),
                             "distance": geopy.distance.distance((args["latitude"], args["longitude"]), (row["lat"].values[0], row["long"].values[0])).km
                         })
                     else:
@@ -193,10 +189,14 @@ class Suggestions(Resource):
                             "name": name.title() + ", " + suffix,
                             "latitude": row["lat"].values[0],
                             "longitude": row["long"].values[0],
-                            "score": score
+                            "score": self.truncate(score, decimals=1)
                         })
 
-            response["suggestions"] = sorted(response["suggestions"], key=itemgetter('score'), reverse=True)
+            if "latitude" in args and "longitude" in args:
+                response["suggestions"] = sorted(response["suggestions"], key=lambda element: (-element["score"], element["distance"]))
+                [result.pop('distance', None) for result in response["suggestions"]]
+            else:
+                response["suggestions"] = sorted(response["suggestions"], key=itemgetter('score'), reverse=True)
 
             return response
         else:
