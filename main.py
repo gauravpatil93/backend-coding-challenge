@@ -159,8 +159,6 @@ class Suggestions(Resource):
             for rid in ids:
                 row = df.loc[df['id'] == rid]
 
-                name = ""
-
                 if pd.isna(row["ascii"].values[0]):
                     continue
 
