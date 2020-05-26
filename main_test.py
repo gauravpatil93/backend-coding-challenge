@@ -32,6 +32,7 @@ class TestApp(unittest.TestCase):
         r = client.get('/suggestions')
         string = r.data.decode("utf-8").strip()
         string = string.replace('"', "")
+        self.assertEqual(r.status_code, 200)
         self.assertEqual("required key not provided @ data['q']", string)
 
     def test_no_query_equals(self):
@@ -40,15 +41,17 @@ class TestApp(unittest.TestCase):
         r = client.get('/suggestions?')
         string = r.data.decode("utf-8").strip()
         string = string.replace('"', "")
+        self.assertEqual(r.status_code, 200)
         self.assertEqual("required key not provided @ data['q']", string)
 
     def test_no_output(self):
         main.app.testing = True
         client = main.app.test_client()
-        r = client.get('/suggestions?q=somerandomplace')
+        r = client.get('/suggestions?q=somerandomplaceinthemiddleofnowherewhichisnotgreat')
         response = '{suggestions: []}'
         string = r.data.decode("utf-8").strip()
         string = string.replace('"', "")
+        self.assertEqual(r.status_code, 200)
         self.assertEqual(response, string)
 
     def test_query_is_number_output(self):
@@ -58,9 +61,9 @@ class TestApp(unittest.TestCase):
         response = '{suggestions: []}'
         string = r.data.decode("utf-8").strip()
         string = string.replace('"', "")
+        self.assertEqual(r.status_code, 200)
         self.assertEqual(response, string)
 
-    
 
 if __name__ == '__main__':
     unittest.main()

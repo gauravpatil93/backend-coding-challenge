@@ -65,9 +65,9 @@ class Suggestions(Resource):
         The scoring function takes the following argument
         `q`: Unicode
 
-        Function returns True if string containes only
+        Function returns True if string contains only
         ascii characters and returns False if the string
-        containes non-ascii characters
+        contains non-ascii characters
         """
         return len(s) == len(s.encode())
 
